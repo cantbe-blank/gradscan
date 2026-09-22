@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '../../../config/config.php';
 
 // --- Step: Select School ---
 $school_id = $_GET['id'] ?? $_POST['id'] ?? null;
@@ -55,8 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$hasRecords) {
 <head>
     <meta charset="UTF-8">
     <title>GradScan | Delete School</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -152,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$hasRecords) {
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>

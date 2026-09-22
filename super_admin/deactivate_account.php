@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '../../config/config.php';
 
 // --- Step: Select Admin/Operator ---
 $user_id = $_GET['id'] ?? $_POST['id'] ?? null;
@@ -29,7 +29,7 @@ $newStatus = $account['status'] === 'active' ? 'inactive' : 'active';
 $actionLabel = $account['status'] === 'active' ? 'Deactivate' : 'Reactivate';
 
 // where to redirect back to, depending on which module linked here
-$returnPage = $account['role'] === 'operator' ? 'operators.php' : 'school_admins.php';
+$returnPage = $account['role'] === 'operator' ? 'operators/operators.php' : 'admins/school_admins.php';
 
 // --- Step: Confirm Deactivation? ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

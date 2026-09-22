@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '../../../config/config.php';
 
 $search = trim($_GET['q'] ?? '');
 
@@ -14,7 +14,7 @@ $sql = "
     SELECT user.*, school.school_name, school.school_code
     FROM user
     LEFT JOIN school ON user.school_id = school.school_id
-    WHERE user.role = 'school_admin'
+    WHERE user.role = 'operator'
 ";
 
 if ($search !== '') {
@@ -33,9 +33,9 @@ $result = mysqli_stmt_get_result($stmt);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GradScan | Manage School Admins</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
+    <title>GradScan | Manage Operators</title>
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -57,26 +57,26 @@ $result = mysqli_stmt_get_result($stmt);
     </nav>
 
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="super_admin_dashboard.php" class="brand-link">
+        <a href="../super_admin_dashboard.php" class="brand-link">
             <span class="brand-text font-weight-light">GradScan</span>
         </a>
         <div class="sidebar">
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
                     <li class="nav-item">
-                        <a href="super_admin_schools.php" class="nav-link">
+                        <a href="../schools/super_admin_schools.php" class="nav-link">
                             <i class="nav-icon fas fa-building"></i>
                             <p>Manage Schools</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="school_admins.php" class="nav-link active">
+                        <a href="../admins/school_admins.php" class="nav-link">
                             <i class="nav-icon fas fa-user-tie"></i>
                             <p>Manage School Admins</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="operators.php" class="nav-link">
+                        <a href="operators.php" class="nav-link active">
                             <i class="nav-icon fas fa-user-cog"></i>
                             <p>Manage Operators</p>
                         </a>
@@ -94,7 +94,7 @@ $result = mysqli_stmt_get_result($stmt);
 
     <div class="content-wrapper">
         <div class="content-header">
-            <h1>Manage School Admins</h1>
+            <h1>Manage Operators</h1>
         </div>
         <div class="content">
 
@@ -103,10 +103,10 @@ $result = mysqli_stmt_get_result($stmt);
                     <input type="text" name="q" class="form-control mr-2" placeholder="Search by username or name" value="<?= htmlspecialchars($search) ?>">
                     <button type="submit" class="btn btn-secondary mr-2">Search</button>
                     <?php if ($search !== ''): ?>
-                        <a href="school_admins.php" class="btn btn-outline-secondary">Clear</a>
+                        <a href="operators.php" class="btn btn-outline-secondary">Clear</a>
                     <?php endif; ?>
                 </form>
-                <a href="create_school_admin.php" class="btn btn-primary">+ Create Admin Account</a>
+                <a href="create_operator.php" class="btn btn-primary">+ Create Operator Account</a>
             </div>
 
             <div class="card">
@@ -123,7 +123,7 @@ $result = mysqli_stmt_get_result($stmt);
                         </thead>
                         <tbody>
                             <?php if (mysqli_num_rows($result) === 0): ?>
-                                <tr><td colspan="5" class="text-center">No school admins found.</td></tr>
+                                <tr><td colspan="5" class="text-center">No operators found.</td></tr>
                             <?php else: ?>
                                 <?php while ($row = mysqli_fetch_assoc($result)): ?>
                                 <tr>
@@ -136,8 +136,8 @@ $result = mysqli_stmt_get_result($stmt);
                                         </span>
                                     </td>
                                     <td>
-                                        <a href="edit_school_admin.php?id=<?= $row['user_id'] ?>" class="btn btn-sm btn-warning">Edit</a>
-                                        <a href="deactivate_account.php?id=<?= $row['user_id'] ?>" class="btn btn-sm btn-danger">
+                                        <a href="edit_operator.php?id=<?= $row['user_id'] ?>" class="btn btn-sm btn-warning">Edit</a>
+                                        <a href="../deactivate_account.php?id=<?= $row['user_id'] ?>" class="btn btn-sm btn-danger">
                                             <?= $row['status'] === 'active' ? 'Deactivate' : 'Reactivate' ?>
                                         </a>
                                     </td>
@@ -154,8 +154,8 @@ $result = mysqli_stmt_get_result($stmt);
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>

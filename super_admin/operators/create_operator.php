@@ -6,12 +6,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '../../../config/config.php';
 
 $errors = [];
 $success = false;
 
-// --- Load schools for the Assign School dropdown ---
 $schoolsResult = mysqli_query($conn, "SELECT school_id, school_name, school_code FROM school WHERE status = 'active'");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -20,12 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password  = $_POST['password'];
     $school_id = $_POST['school_id'];
 
-    // --- Step: Information Complete? ---
     if ($full_name === '' || $username === '' || $password === '' || $school_id === '') {
         $errors[] = 'Please fill out all fields.';
     }
 
-    // --- Step: Username Exists? ---
     if (empty($errors)) {
         $checkStmt = mysqli_prepare($conn, "SELECT user_id FROM user WHERE username = ?");
         mysqli_stmt_bind_param($checkStmt, 's', $username);
@@ -37,11 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // --- Step: Save Account ---
     if (empty($errors)) {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-        $insertStmt = mysqli_prepare($conn, "INSERT INTO user (school_id, username, password_hash, full_name, role) VALUES (?, ?, ?, ?, 'school_admin')");
+        $insertStmt = mysqli_prepare($conn, "INSERT INTO user (school_id, username, password_hash, full_name, role) VALUES (?, ?, ?, ?, 'operator')");
         mysqli_stmt_bind_param($insertStmt, 'isss', $school_id, $username, $passwordHash, $full_name);
         mysqli_stmt_execute($insertStmt);
 
@@ -53,9 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GradScan | Create School Admin</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
+    <title>GradScan | Create Operator</title>
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -77,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </nav>
 
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="super_admin_dashboard.php" class="brand-link">
+        <a href="dashboard.php" class="brand-link">
             <span class="brand-text font-weight-light">GradScan</span>
         </a>
         <div class="sidebar">
@@ -90,13 +86,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="school_admins.php" class="nav-link active">
+                        <a href="school_admins.php" class="nav-link">
                             <i class="nav-icon fas fa-user-tie"></i>
                             <p>Manage School Admins</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="operators.php" class="nav-link">
+                        <a href="operators.php" class="nav-link active">
                             <i class="nav-icon fas fa-user-cog"></i>
                             <p>Manage Operators</p>
                         </a>
@@ -114,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="content-wrapper">
         <div class="content-header">
-            <h1>Create School Admin Account</h1>
+            <h1>Create Operator Account</h1>
         </div>
         <div class="content">
             <div class="card">
@@ -122,8 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <?php if ($success): ?>
                         <div class="alert alert-success">
-                            School admin account created successfully.
-                            <a href="school_admins.php">Back to Manage School Admins</a>
+                            Operator account created successfully.
+                            <a href="operators.php">Back to Manage Operators</a>
                         </div>
                     <?php endif; ?>
 
@@ -163,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                         </div>
                         <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">Save Account</button>
-                        <a href="school_admins.php" class="btn btn-secondary">Cancel</a>
+                        <a href="operators.php" class="btn btn-secondary">Cancel</a>
                     </form>
                     <?php endif; ?>
 
@@ -174,8 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>

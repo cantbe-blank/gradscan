@@ -41,19 +41,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
                     <li class="nav-item">
-                        <a href="super_admin_schools.php" class="nav-link active">
+                        <a href="schools/super_admin_schools.php" class="nav-link active">
                             <i class="nav-icon fas fa-building"></i>
                             <p>Manage Schools</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="school_admins.php" class="nav-link">
+                        <a href="admins/school_admins.php" class="nav-link">
                             <i class="nav-icon fas fa-user-tie"></i>
                             <p>Manage School Admins</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="operators.php" class="nav-link">
+                        <a href="operators/operators.php" class="nav-link">
                             <i class="nav-icon fas fa-user-cog"></i>
                             <p>Manage Operators</p>
                         </a>

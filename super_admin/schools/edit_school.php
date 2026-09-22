@@ -6,39 +6,63 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '../../../config/config.php';
+
+// --- Step: Search School (by ID from the Edit link) ---
+$school_id = $_GET['id'] ?? null;
+
+if (!$school_id) {
+    die('No school specified.');
+}
 
 $errors = [];
 $success = false;
 
+// --- Step: School Found? ---
+$stmt = mysqli_prepare($conn, "SELECT * FROM school WHERE school_id = ?");
+mysqli_stmt_bind_param($stmt, 'i', $school_id);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+$school = mysqli_fetch_assoc($result);
+
+if (!$school) {
+    // --- Step: Show Error ---
+    die('School not found.');
+}
+
+// --- Step: Edit School / Save Changes ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $school_name = trim($_POST['school_name']);
     $school_code = trim($_POST['school_code']);
+    $status = $_POST['status'];
 
-    // --- Step: Information Complete? ---
     if ($school_name === '' || $school_code === '') {
         $errors[] = 'Please fill out all fields.';
     }
 
-    // --- Step: School code already exist? ---
+    // Duplicate check, excluding this school's own current row
     if (empty($errors)) {
-        $checkStmt = mysqli_prepare($conn, "SELECT school_id FROM school WHERE school_code = ?");
-        mysqli_stmt_bind_param($checkStmt, 's', $school_code);
+        $checkStmt = mysqli_prepare($conn, "SELECT school_id FROM school WHERE school_code = ? AND school_id != ?");
+        mysqli_stmt_bind_param($checkStmt, 'si', $school_code, $school_id);
         mysqli_stmt_execute($checkStmt);
         mysqli_stmt_store_result($checkStmt);
 
         if (mysqli_stmt_num_rows($checkStmt) > 0) {
-            $errors[] = 'A school with this code already exists.';
+            $errors[] = 'Another school already uses this code.';
         }
     }
 
-    // --- Step: Save School / Save to DB ---
+    // --- Step: Save Changes ---
     if (empty($errors)) {
-        $insertStmt = mysqli_prepare($conn, "INSERT INTO school (school_name, school_code) VALUES (?, ?)");
-        mysqli_stmt_bind_param($insertStmt, 'ss', $school_name, $school_code);
-        mysqli_stmt_execute($insertStmt);
+        $updateStmt = mysqli_prepare($conn, "UPDATE school SET school_name = ?, school_code = ?, status = ? WHERE school_id = ?");
+        mysqli_stmt_bind_param($updateStmt, 'sssi', $school_name, $school_code, $status, $school_id);
+        mysqli_stmt_execute($updateStmt);
 
         $success = true;
+
+        $school['school_name'] = $school_name;
+        $school['school_code'] = $school_code;
+        $school['status'] = $status;
     }
 }
 ?>
@@ -46,9 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GradScan | Add School</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
+    <title>GradScan | Edit School</title>
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -107,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="content-wrapper">
         <div class="content-header">
-            <h1>Add School</h1>
+            <h1>Edit School</h1>
         </div>
         <div class="content">
             <div class="card">
@@ -115,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <?php if ($success): ?>
                         <div class="alert alert-success">
-                            School added successfully.
+                            Changes saved successfully.
                             <a href="super_admin_schools.php">Back to Manage Schools</a>
                         </div>
                     <?php endif; ?>
@@ -130,20 +154,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     <?php endif; ?>
 
-                    <?php if (!$success): ?>
                     <form method="POST">
                         <div class="form-group">
                             <label>School Name</label>
-                            <input type="text" name="school_name" class="form-control" value="<?= htmlspecialchars($_POST['school_name'] ?? '') ?>" placeholder="e.g. School of Information Technology">
+                            <input type="text" name="school_name" class="form-control" value="<?= htmlspecialchars($school['school_name']) ?>">
                         </div>
                         <div class="form-group">
                             <label>School Code</label>
-                            <input type="text" name="school_code" class="form-control" value="<?= htmlspecialchars($_POST['school_code'] ?? '') ?>" placeholder="e.g. BSIT">
+                            <input type="text" name="school_code" class="form-control" value="<?= htmlspecialchars($school['school_code']) ?>">
                         </div>
-                        <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">Save School</button>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select name="status" class="form-control">
+                                <option value="active" <?= $school['status'] === 'active' ? 'selected' : '' ?>>Active</option>
+                                <option value="inactive" <?= $school['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">Save Changes</button>
                         <a href="super_admin_schools.php" class="btn btn-secondary">Cancel</a>
                     </form>
-                    <?php endif; ?>
 
                 </div>
             </div>
@@ -152,8 +181,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>

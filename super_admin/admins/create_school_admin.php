@@ -6,57 +6,46 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
     exit;
 }
 
-require_once __DIR__ . '/../config/config.php';
-
-// --- Step: Search Admin (by ID from the Edit link) ---
-$user_id = $_GET['id'] ?? null;
-
-if (!$user_id) {
-    die('No account specified.');
-}
+require_once __DIR__ . '../../../config/config.php';
 
 $errors = [];
 $success = false;
 
-// --- Step: Account Found? ---
-$stmt = mysqli_prepare($conn, "SELECT * FROM user WHERE user_id = ? AND role = 'school_admin'");
-mysqli_stmt_bind_param($stmt, 'i', $user_id);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-$account = mysqli_fetch_assoc($result);
-
-if (!$account) {
-    // --- Step: Error ---
-    die('Account not found.');
-}
-
+// --- Load schools for the Assign School dropdown ---
 $schoolsResult = mysqli_query($conn, "SELECT school_id, school_name, school_code FROM school WHERE status = 'active'");
 
-// --- Step: Edit Account / Save Changes ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $full_name = trim($_POST['full_name']);
+    $username  = trim($_POST['username']);
+    $password  = $_POST['password'];
     $school_id = $_POST['school_id'];
-    $newPassword = $_POST['password'];
 
-    if ($full_name === '' || $school_id === '') {
-        $errors[] = 'Please fill out all required fields.';
+    // --- Step: Information Complete? ---
+    if ($full_name === '' || $username === '' || $password === '' || $school_id === '') {
+        $errors[] = 'Please fill out all fields.';
     }
 
+    // --- Step: Username Exists? ---
     if (empty($errors)) {
-        if ($newPassword !== '') {
-            // Password reset requested alongside the other changes
-            $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $updateStmt = mysqli_prepare($conn, "UPDATE user SET full_name = ?, school_id = ?, password_hash = ? WHERE user_id = ?");
-            mysqli_stmt_bind_param($updateStmt, 'sisi', $full_name, $school_id, $passwordHash, $user_id);
-        } else {
-            $updateStmt = mysqli_prepare($conn, "UPDATE user SET full_name = ?, school_id = ? WHERE user_id = ?");
-            mysqli_stmt_bind_param($updateStmt, 'sii', $full_name, $school_id, $user_id);
+        $checkStmt = mysqli_prepare($conn, "SELECT user_id FROM user WHERE username = ?");
+        mysqli_stmt_bind_param($checkStmt, 's', $username);
+        mysqli_stmt_execute($checkStmt);
+        mysqli_stmt_store_result($checkStmt);
+
+        if (mysqli_stmt_num_rows($checkStmt) > 0) {
+            $errors[] = 'This username is already taken.';
         }
-        mysqli_stmt_execute($updateStmt);
+    }
+
+    // --- Step: Save Account ---
+    if (empty($errors)) {
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+
+        $insertStmt = mysqli_prepare($conn, "INSERT INTO user (school_id, username, password_hash, full_name, role) VALUES (?, ?, ?, ?, 'school_admin')");
+        mysqli_stmt_bind_param($insertStmt, 'isss', $school_id, $username, $passwordHash, $full_name);
+        mysqli_stmt_execute($insertStmt);
 
         $success = true;
-        $account['full_name'] = $full_name;
-        $account['school_id'] = $school_id;
     }
 }
 ?>
@@ -64,9 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GradScan | Edit School Admin</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
+    <title>GradScan | Create School Admin</title>
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../../AdminLTE-3.2.0/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
@@ -107,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="operators.php" class="nav-link">
+                        <a href="../operators/operators.php" class="nav-link">
                             <i class="nav-icon fas fa-user-cog"></i>
                             <p>Manage Operators</p>
                         </a>
@@ -125,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="content-wrapper">
         <div class="content-header">
-            <h1>Edit School Admin</h1>
+            <h1>Create School Admin Account</h1>
         </div>
         <div class="content">
             <div class="card">
@@ -133,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <?php if ($success): ?>
                         <div class="alert alert-success">
-                            Changes saved successfully.
+                            School admin account created successfully.
                             <a href="school_admins.php">Back to Manage School Admins</a>
                         </div>
                     <?php endif; ?>
@@ -148,33 +137,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     <?php endif; ?>
 
+                    <?php if (!$success): ?>
                     <form method="POST">
                         <div class="form-group">
-                            <label>Username</label>
-                            <input type="text" class="form-control" value="<?= htmlspecialchars($account['username']) ?>" disabled>
-                            <small class="text-muted">Username cannot be changed.</small>
+                            <label>Full Name</label>
+                            <input type="text" name="full_name" class="form-control" value="<?= htmlspecialchars($_POST['full_name'] ?? '') ?>">
                         </div>
                         <div class="form-group">
-                            <label>Full Name</label>
-                            <input type="text" name="full_name" class="form-control" value="<?= htmlspecialchars($account['full_name']) ?>">
+                            <label>Username</label>
+                            <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" name="password" class="form-control">
                         </div>
                         <div class="form-group">
                             <label>Assign School</label>
                             <select name="school_id" class="form-control">
+                                <option value="">-- Select a School --</option>
                                 <?php mysqli_data_seek($schoolsResult, 0); while ($s = mysqli_fetch_assoc($schoolsResult)): ?>
-                                    <option value="<?= $s['school_id'] ?>" <?= $account['school_id'] == $s['school_id'] ? 'selected' : '' ?>>
+                                    <option value="<?= $s['school_id'] ?>" <?= (($_POST['school_id'] ?? '') == $s['school_id']) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($s['school_name'] . ' (' . $s['school_code'] . ')') ?>
                                     </option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Reset Password</label>
-                            <input type="password" name="password" class="form-control" placeholder="Leave blank to keep current password">
-                        </div>
-                        <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">Save Changes</button>
+                        <button type="submit" class="btn btn-primary" onclick="this.disabled=true; this.form.submit();">Save Account</button>
                         <a href="school_admins.php" class="btn btn-secondary">Cancel</a>
                     </form>
+                    <?php endif; ?>
 
                 </div>
             </div>
@@ -183,8 +174,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
+<script src="../../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>
