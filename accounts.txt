@@ -9,3 +9,12 @@ operator
 super_admin
     username: super_admin1
     password: password123
+
+admin_bsee
+    username: admin_bsee
+    password: password123
+
+operator_bsee:
+    username: operator_bsee
+    password: password123
+    

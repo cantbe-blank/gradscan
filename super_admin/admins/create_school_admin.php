@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span class="nav-link"><?= $_SESSION['full_name'] ?> (Super Admin)</span>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="../logout.php">Logout</a>
+                <a class="nav-link" href="../../logout.php">Logout</a>
             </li>
         </ul>
     </nav>

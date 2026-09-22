@@ -74,7 +74,7 @@ $result = mysqli_stmt_get_result($stmt);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="reports.php" class="nav-link">
+                        <a href="../reports.php" class="nav-link">
                             <i class="nav-icon fas fa-chart-bar"></i>
                             <p>View Reports</p>
                         </a>

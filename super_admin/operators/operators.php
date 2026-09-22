@@ -2,7 +2,7 @@
 session_start();
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'super_admin') {
-    header('Location: ../login.php');
+    header('Location: ../../login.php');
     exit;
 }
 
@@ -51,7 +51,7 @@ $result = mysqli_stmt_get_result($stmt);
                 <span class="nav-link"><?= $_SESSION['full_name'] ?> (Super Admin)</span>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="../logout.php">Logout</a>
+                <a class="nav-link" href="../../logout.php">Logout</a>
             </li>
         </ul>
     </nav>
@@ -82,7 +82,7 @@ $result = mysqli_stmt_get_result($stmt);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="reports.php" class="nav-link">
+                        <a href="../reports.php" class="nav-link">
                             <i class="nav-icon fas fa-chart-bar"></i>
                             <p>View Reports</p>
                         </a>
