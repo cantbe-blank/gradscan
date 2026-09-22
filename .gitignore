@@ -1,1 +1,15 @@
-*.zip
+# Composer-managed dependencies — regenerate with `composer install`
+vendor/
+
+# Runtime-generated content (graduate photos, auto-generated QR images)
+photos/*
+qrcodes/*
+!photos/.gitkeep
+!qrcodes/.gitkeep
+
+# Local environment / credentials
+config/config.php
+
+# OS/editor clutter
+.DS_Store
+Thumbs.db
