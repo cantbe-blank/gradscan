@@ -1,0 +1,11 @@
+school_admin
+    username: admin
+    password: admin123
+
+operator
+    username: operator_bsit
+    password: password123
+
+super_admin
+    username: super_admin1
+    password: password123
