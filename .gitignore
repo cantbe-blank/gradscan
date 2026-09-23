@@ -13,3 +13,5 @@ config/config.php
 # OS/editor clutter
 .DS_Store
 Thumbs.db
+
+accounts.txt   
