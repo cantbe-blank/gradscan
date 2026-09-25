@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@source "../../";
+
+@theme {
+    --font-poppins: "Poppins", sans-serif;
+
+    --color-ascot-green: #2E8A57;
+    --color-ascot-dark: #074422;
+    --color-ascot-light: #FEEE8C;
+    --color-ascot-yellow: #FFDD21;
+    --color-ascot-orange: #F58C0B;
+}
+
+/* ========================================
+   GradScan Layout
+======================================== */
+
+@layer components {
+
+    /* Page */
+    .gs-page {
+        @apply min-h-screen bg-slate-100 font-poppins text-gray-800;
+    }
+
+    .gs-main {
+        @apply ml-64 min-h-screen;
+    }
+
+
+    /* Sidebar */
+    .gs-sidebar {
+        @apply fixed inset-y-0 left-0 z-40 w-64 bg-ascot-dark text-white;
+    }
+
+    .gs-sidebar-brand {
+        @apply flex h-20 items-center border-b border-white/10 px-6;
+    }
+
+    .gs-sidebar-nav {
+        @apply mt-6 px-3;
+    }
+
+    .gs-sidebar-section {
+        @apply mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-green-200;
+    }
+
+    .gs-sidebar-link {
+        @apply mb-1 flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-green-50 transition hover:bg-white/10;
+    }
+
+    .gs-sidebar-link-active {
+        @apply bg-white/10 text-white;
+    }
+
+
+    /* Top Navigation */
+    .gs-topbar {
+        @apply flex h-20 items-center justify-between border-b border-gray-200 bg-white px-8;
+    }
+
+    .gs-topbar-title {
+        @apply text-xl font-semibold text-ascot-dark;
+    }
+
+    .gs-topbar-subtitle {
+        @apply text-sm text-gray-500;
+    }
+
+    .gs-user-name {
+        @apply text-sm font-semibold text-gray-800;
+    }
+
+    .gs-user-role {
+        @apply text-xs capitalize text-gray-500;
+    }
+
+
+    /* Content */
+    .gs-content {
+        @apply p-8;
+    }
+
+    .gs-page-header {
+        @apply mb-8;
+    }
+
+    .gs-page-title {
+        @apply text-2xl font-semibold text-ascot-dark;
+    }
+
+    .gs-page-description {
+        @apply mt-1 text-sm text-gray-500;
+    }
+
+
+    /* Cards */
+    .gs-card {
+        @apply rounded-xl border border-gray-200 bg-white shadow-sm;
+    }
+
+    .gs-dashboard-card {
+        @apply rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-ascot-green hover:shadow-md;
+    }
+
+    .gs-card-icon {
+        @apply mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-green-50 text-ascot-green;
+    }
+
+
+    /* Buttons */
+    .gs-button-primary {
+        @apply rounded-lg bg-ascot-green px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-ascot-dark focus:outline-none focus:ring-2 focus:ring-ascot-green focus:ring-offset-2;
+    }
+
+    .gs-button-secondary {
+        @apply rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50;
+    }
+
+    .gs-button-danger {
+        @apply rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600;
+    }
+
+
+    /* Forms */
+    .gs-label {
+        @apply mb-2 block text-sm font-semibold text-gray-700;
+    }
+
+    .gs-input {
+        @apply w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-ascot-green focus:ring-2 focus:ring-green-100;
+    }
+
+
+    /* Tables */
+    .gs-table-wrapper {
+        @apply overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm;
+    }
+
+    .gs-table {
+        @apply min-w-full divide-y divide-gray-200;
+    }
+
+    .gs-table-header {
+        @apply bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500;
+    }
+
+    .gs-table-cell {
+        @apply whitespace-nowrap px-6 py-4 text-sm text-gray-700;
+    }
+    /* Buttons for table actions */
+    .gs-button-edit {
+    @apply rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100;
+    }
+
+    .gs-button-delete {
+        @apply rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100;
+    }
+}

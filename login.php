@@ -50,20 +50,137 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Page</title>
+
+    <!-- Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <!-- Tailwind -->
+    <link rel="stylesheet" href="frontend/dist/output.css">
+
+    <title>GradScan - Login</title>
 </head>
-<body>
-    <h1>Login</h1>
-    <?php if (isset($error)): ?>
-        <p style="color:red;"><?= $error ?></p>
-    <?php endif; ?>
-    <form method="POST">
-        <label>Username</label>
-        <input type="text" name="username">
-        <label for="">Password</label>
-        <input type="password" name="password">
-        <button type="submit">Login</button>
-        <a href="./register.php">register</a>
-    </form>
+
+<body class="min-h-screen bg-slate-100 font-poppins text-ascot-text">
+
+    <main class="flex min-h-screen items-center justify-center px-6 py-12">
+
+        <div class="w-full max-w-md">
+
+            <!-- Login Card -->
+            <div class="overflow-hidden rounded-2xl bg-white shadow-xl">
+
+                <!-- Green Header -->
+                <div class="bg-ascot-dark px-8 py-8 text-center">
+
+                    <!-- ASCOT Logo -->
+                    <div class="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-white p-3 shadow-md">
+                        <img
+                            src="photos/ascot_logo.png"
+                            alt="ASCOT Logo"
+                            class="h-full w-full object-contain"
+                        >
+                    </div>
+
+                    <h1 class="text-3xl font-bold tracking-tight text-white">
+                        GradScan
+                    </h1>
+
+                    <p class="mt-2 text-sm font-medium text-green-100">
+                        Graduation Management System
+                    </p>
+
+                </div>
+
+                <!-- Login Form Area -->
+                <div class="px-8 py-8">
+
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold text-ascot-dark">
+                            Welcome back
+                        </h2>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Sign in to continue to GradScan.
+                        </p>
+                    </div>
+
+                    <!-- Error Message -->
+                    <?php if (isset($error)): ?>
+                        <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            <?= htmlspecialchars($error) ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Login Form -->
+                    <form method="POST" class="space-y-5">
+
+                        <!-- Username -->
+                        <div>
+                            <label
+                                for="username"
+                                class="mb-2 block text-sm font-semibold text-gray-700"
+                            >
+                                Username
+                            </label>
+
+                            <input
+                                type="text"
+                                id="username"
+                                name="username"
+                                required
+                                autocomplete="username"
+                                placeholder="Enter your username"
+                                class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-ascot-green focus:ring-2 focus:ring-green-100"
+                            >
+                        </div>
+
+                        <!-- Password -->
+                        <div>
+                            <label
+                                for="password"
+                                class="mb-2 block text-sm font-semibold text-gray-700"
+                            >
+                                Password
+                            </label>
+
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                required
+                                autocomplete="current-password"
+                                placeholder="Enter your password"
+                                class="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-ascot-green focus:ring-2 focus:ring-green-100"
+                            >
+                        </div>
+
+                        <!-- Login Button -->
+                        <button
+                            type="submit"
+                            class="w-full rounded-lg bg-ascot-green px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-ascot-dark focus:outline-none focus:ring-2 focus:ring-ascot-green focus:ring-offset-2"
+                        >
+                            Login
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <p class="mt-6 text-center text-xs text-gray-500">
+                GradScan · Graduation Management System
+            </p>
+
+        </div>
+
+    </main>
+
 </body>
 </html>
