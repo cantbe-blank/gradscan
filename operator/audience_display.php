@@ -1,129 +1,104 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'operator') {
+    header('Location: ../login.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>GradScan | Display</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #1e293b;
-            color: #ffffff;
-            transition: background-color 0.5s ease;
-        }
-        #waitingState {
-            font-size: 2rem;
-            opacity: 0.6;
-        }
-        #displayState {
-            display: none;
-            text-align: center;
-            padding: 60px;
-        }
-        #displayState.active {
-            display: block;
-        }
-        #photo {
-            width: 220px;
-            height: 220px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 6px solid rgba(255,255,255,0.3);
-            margin-bottom: 30px;
-        }
-        #headerText {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-            opacity: 0.8;
-        }
-        #fullName {
-            font-size: 3.5rem;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-        #courseMajor {
-            font-size: 1.8rem;
-            margin-bottom: 10px;
-        }
-        #honors {
-            font-size: 1.4rem;
-            font-style: italic;
-        }
-        #accentBar {
-            width: 100px;
-            height: 5px;
-            margin: 20px auto;
-        }
-    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link rel="stylesheet" href="../frontend/dist/output.css">
 </head>
-<body>
 
-    <div id="waitingState">Waiting for next graduate...</div>
+<body class="flex h-screen w-screen cursor-default select-none items-center justify-center overflow-hidden bg-black font-poppins text-white">
 
-    <div id="displayState">
-        <img id="photo" src="" alt="Graduate Photo">
-        <div id="headerText"></div>
-        <div id="fullName"></div>
-        <div id="accentBar"></div>
-        <div id="courseMajor"></div>
-        <div id="honors"></div>
+    <!-- Waiting state -->
+    <div id="waitingState" class="flex h-full w-full flex-col items-center justify-center bg-ascot-dark text-center">
+
+        <div class="mb-8 flex h-28 w-28 items-center justify-center rounded-full bg-white p-3">
+            <img
+                src="../photos/ascot_logo.png"
+                alt="ASCOT Logo"
+                class="h-full w-full object-contain"
+            >
+        </div>
+
+        <p class="text-3xl font-semibold text-white/80">
+            Waiting for next graduate...
+        </p>
+
+        <p id="fullscreenHint" class="mt-6 text-sm text-green-200/70">
+            Double-click to toggle fullscreen
+        </p>
+
     </div>
 
+    <!-- Graduate display: a 16:9 canvas fitted inside the screen -->
+    <div
+        id="displayState"
+        class="hidden w-[min(100vw,calc(100vh*16/9))] opacity-0 transition-opacity duration-500"
+    ></div>
+
+
+    <script src="js/hid_scanner.js?v=<?= filemtime(__DIR__ . '/js/hid_scanner.js') ?>"></script>
+
     <script>
-        const channel = new BroadcastChannel('gradscan_display');
+        const displayChannel = new BroadcastChannel('gradscan_display');
+        const inputChannel   = new BroadcastChannel('gradscan_scanner_input');
 
-        const waitingState = document.getElementById('waitingState');
-        const displayState = document.getElementById('displayState');
-        const photo = document.getElementById('photo');
-        const headerText = document.getElementById('headerText');
-        const fullName = document.getElementById('fullName');
-        const courseMajor = document.getElementById('courseMajor');
-        const honorsEl = document.getElementById('honors');
-        const accentBar = document.getElementById('accentBar');
+        const waitingState   = document.getElementById('waitingState');
+        const displayState   = document.getElementById('displayState');
+        const fullscreenHint = document.getElementById('fullscreenHint');
 
-        channel.onmessage = function (event) {
-            const { graduate, layout } = event.data;
+        // --- Step: Display on Audience Monitor ---
+        // display_html is the school's active layout, rendered server-side by
+        // gs_render_layout_canvas() in scan_process.php (all values escaped there).
+        displayChannel.onmessage = function (event) {
+            const { display_html } = event.data;
+            if (!display_html) return;
 
-            // --- Step: Generate Display (apply the department's saved layout styling) ---
-            if (layout) {
-                document.body.style.backgroundColor = layout.background_color || '#1e293b';
-                fullName.style.color = layout.text_color || '#ffffff';
-                headerText.style.color = layout.text_color || '#ffffff';
-                accentBar.style.backgroundColor = layout.accent_color || '#3b82f6';
-                headerText.textContent = layout.header_text || 'Congratulations Graduates!';
-            }
+            displayState.classList.add('opacity-0');
 
-            // --- Step: Display on Audience Monitor ---
-            const middleInitial = graduate.middle_name ? graduate.middle_name.charAt(0) + '.' : '';
-            fullName.textContent = `${graduate.first_name} ${middleInitial} ${graduate.last_name} ${graduate.suffix || ''}`.replace(/\s+/g, ' ').trim();
+            setTimeout(function () {
+                displayState.innerHTML = display_html;
+                waitingState.classList.add('hidden');
+                displayState.classList.remove('hidden');
 
-            courseMajor.textContent = graduate.major
-                ? `${graduate.course} - ${graduate.major}`
-                : graduate.course;
-
-            if (graduate.honors && graduate.honors !== 'none') {
-                honorsEl.style.display = 'block';
-                honorsEl.textContent = graduate.honors.replace(/\b\w/g, c => c.toUpperCase());
-            } else {
-                honorsEl.style.display = 'none';
-            }
-
-            const showPhoto = !layout || layout.show_photo !== false;
-            if (showPhoto && graduate.photo) {
-                photo.style.display = 'block';
-                photo.src = '../' + graduate.photo;
-            } else {
-                photo.style.display = 'none';
-            }
-
-            waitingState.style.display = 'none';
-            displayState.classList.add('active');
+                requestAnimationFrame(() => displayState.classList.remove('opacity-0'));
+            }, displayState.classList.contains('hidden') ? 0 : 300);
         };
+
+        // If this window is focused on the projector, scanner keystrokes land
+        // here. Forward them to the scanner page, which does the processing.
+        gsListenForScanner(token => inputChannel.postMessage({ token }));
+
+        document.addEventListener('dblclick', function () {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+        });
+
+        document.addEventListener('fullscreenchange', function () {
+            fullscreenHint.classList.toggle('hidden', !!document.fullscreenElement);
+        });
     </script>
+
 </body>
 </html>

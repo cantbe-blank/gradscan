@@ -162,4 +162,68 @@
     .gs-button-view {
         @apply rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100;
     }
+
+    /* Operator scanner */
+    .gs-scan-ring {
+        @apply mx-auto mb-6 flex h-36 w-36 items-center justify-center rounded-full border-4 transition;
+    }
+
+    .gs-scan-ring-ready {
+        @apply border-ascot-green bg-green-50 text-ascot-green;
+        animation: gs-pulse-ring 2s ease-in-out infinite;
+    }
+
+    .gs-scan-ring-busy {
+        @apply border-blue-500 bg-blue-50 text-blue-600;
+    }
+
+    .gs-scan-ring-error {
+        @apply border-red-500 bg-red-50 text-red-600;
+    }
+
+
+    /* Alerts */
+    .gs-alert {
+        @apply rounded-lg border px-4 py-3 text-sm font-medium;
+    }
+
+    .gs-alert-success {
+        @apply border-green-200 bg-green-50 text-green-800;
+    }
+
+    .gs-alert-info {
+        @apply border-blue-200 bg-blue-50 text-blue-800;
+    }
+
+    .gs-alert-error {
+        @apply border-red-200 bg-red-50 text-red-700;
+    }
+
+
+    /* Badges */
+    .gs-badge {
+        @apply inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold;
+    }
+
+    .gs-badge-success {
+        @apply bg-green-100 text-green-800;
+    }
+
+    .gs-badge-info {
+        @apply bg-blue-100 text-blue-800;
+    }
+
+    .gs-badge-warning {
+        @apply bg-amber-100 text-amber-800;
+    }
+
+    .gs-badge-error {
+        @apply bg-red-100 text-red-700;
+    }
+}
+
+@keyframes gs-pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(46, 138, 87, 0.35); }
+    70%  { box-shadow: 0 0 0 18px rgba(46, 138, 87, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 138, 87, 0); }
 }

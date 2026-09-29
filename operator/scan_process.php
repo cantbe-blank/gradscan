@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../config/layout_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -89,4 +90,5 @@ echo json_encode([
     'success' => true,
     'graduate' => $graduate,
     'layout' => $layoutConfig,
+    'display_html' => gs_render_layout_canvas($layoutConfig, $graduate, '../'),
 ]);
