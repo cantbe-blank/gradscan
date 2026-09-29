@@ -6,6 +6,8 @@ photos/*
 qrcodes/*
 !photos/.gitkeep
 !qrcodes/.gitkeep
+layout_backgrounds/*
+!layout_backgrounds/.gitkeep
 
 # Local environment / credentials
 config/config.php
@@ -15,3 +17,5 @@ config/config.php
 Thumbs.db
 
 accounts.txt   
+
+node_modules/

@@ -12,11 +12,13 @@ if (!isset($_SESSION['user_id'])) {
 $school_id = $_SESSION['school_id'];
 $search = trim($_GET['q'] ?? '');
 
+// Note: added address, honors, and graduation_year so the preview modal can
+// show the full record without firing a second query per row.
 if ($search !== '') {
 
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, photo
+        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo
          FROM graduate
          WHERE school_id = ?
          AND (
@@ -41,7 +43,7 @@ if ($search !== '') {
 
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, photo
+        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo
          FROM graduate
          WHERE school_id = ?"
     );
@@ -52,6 +54,13 @@ if ($search !== '') {
 mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
+
+$honorLabels = [
+    'none' => 'No Honors',
+    'cum laude' => 'Cum Laude',
+    'magna cum laude' => 'Magna Cum Laude',
+    'summa cum laude' => 'Summa Cum Laude',
+];
 
 $pageTitle = 'GradScan | Graduate Management';
 
@@ -183,7 +192,7 @@ require_once 'includes/sidebar.php';
         <!-- Graduate Table -->
         <section class="gs-table-wrapper">
 
-            <div class="overflow-x-auto">
+            <div>
 
                 <table class="gs-table">
 
@@ -196,19 +205,7 @@ require_once 'includes/sidebar.php';
                             </th>
 
                             <th class="gs-table-header px-6 py-4">
-                                First Name
-                            </th>
-
-                            <th class="gs-table-header px-6 py-4">
-                                Middle Name
-                            </th>
-
-                            <th class="gs-table-header px-6 py-4">
-                                Last Name
-                            </th>
-
-                            <th class="gs-table-header px-6 py-4">
-                                Suffix
+                                Name
                             </th>
 
                             <th class="gs-table-header px-6 py-4">
@@ -236,6 +233,15 @@ require_once 'includes/sidebar.php';
 
                         <?php while ($row = mysqli_fetch_assoc($result)): ?>
 
+                            <?php
+                                $fullName = trim(implode(' ', array_filter([
+                                    $row['first_name'],
+                                    $row['middle_name'],
+                                    $row['last_name'],
+                                    $row['suffix'],
+                                ])));
+                            ?>
+
                             <tr class="transition hover:bg-gray-50">
 
                                 <td class="gs-table-cell font-medium text-ascot-dark">
@@ -243,19 +249,7 @@ require_once 'includes/sidebar.php';
                                 </td>
 
                                 <td class="gs-table-cell">
-                                    <?= htmlspecialchars($row['first_name']) ?>
-                                </td>
-
-                                <td class="gs-table-cell">
-                                    <?= htmlspecialchars($row['middle_name']) ?>
-                                </td>
-
-                                <td class="gs-table-cell">
-                                    <?= htmlspecialchars($row['last_name']) ?>
-                                </td>
-
-                                <td class="gs-table-cell">
-                                    <?= htmlspecialchars($row['suffix']) ?>
+                                    <?= htmlspecialchars($fullName) ?>
                                 </td>
 
                                 <td class="gs-table-cell">
@@ -290,6 +284,26 @@ require_once 'includes/sidebar.php';
 
                                     <div class="flex items-center gap-2">
 
+                                        <button
+                                            type="button"
+                                            class="gs-button-view"
+                                            onclick="openGraduatePreview(this)"
+                                            data-id="<?= $row['graduate_id'] ?>"
+                                            data-student-id="<?= htmlspecialchars($row['student_id']) ?>"
+                                            data-first-name="<?= htmlspecialchars($row['first_name']) ?>"
+                                            data-middle-name="<?= htmlspecialchars($row['middle_name']) ?>"
+                                            data-last-name="<?= htmlspecialchars($row['last_name']) ?>"
+                                            data-suffix="<?= htmlspecialchars($row['suffix']) ?>"
+                                            data-course="<?= htmlspecialchars($row['course']) ?>"
+                                            data-major="<?= htmlspecialchars($row['major']) ?>"
+                                            data-address="<?= htmlspecialchars($row['address']) ?>"
+                                            data-honors="<?= htmlspecialchars($honorLabels[$row['honors']] ?? $row['honors']) ?>"
+                                            data-graduation-year="<?= htmlspecialchars($row['graduation_year']) ?>"
+                                            data-photo="<?= $row['photo'] ? htmlspecialchars('../' . $row['photo']) : '' ?>"
+                                        >
+                                            View
+                                        </button>
+
                                         <a
                                             href="edit_graduate.php?id=<?= $row['graduate_id'] ?>"
                                             class="gs-button-edit"
@@ -322,5 +336,152 @@ require_once 'includes/sidebar.php';
     </main>
 
 </div>
+
+
+<!-- Graduate Preview Modal -->
+<div
+    id="graduatePreviewModal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4"
+    onclick="if (event.target === this) closeGraduatePreview()"
+>
+
+    <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <h3 class="text-lg font-bold text-ascot-dark">Graduate Details</h3>
+            <button
+                type="button"
+                onclick="closeGraduatePreview()"
+                class="rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Close"
+            >
+                &#10005;
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 p-6 md:grid-cols-[200px_1fr]">
+
+            <!-- Photo: 2:3 ratio -->
+            <div class="aspect-[2/3] w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                <img
+                    id="previewPhoto"
+                    src=""
+                    alt="Graduate photo"
+                    class="h-full w-full object-cover"
+                >
+                <div id="previewNoPhoto" class="hidden h-full w-full items-center justify-center text-sm text-gray-400">
+                    No photo
+                </div>
+            </div>
+
+            <!-- Details -->
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+
+                <div class="sm:col-span-2">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Full Name</dt>
+                    <dd id="previewFullName" class="text-base font-semibold text-ascot-dark"></dd>
+                </div>
+
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Student ID</dt>
+                    <dd id="previewStudentId" class="text-sm text-gray-800"></dd>
+                </div>
+
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Graduation Year</dt>
+                    <dd id="previewGraduationYear" class="text-sm text-gray-800"></dd>
+                </div>
+
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Course</dt>
+                    <dd id="previewCourse" class="text-sm text-gray-800"></dd>
+                </div>
+
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Major</dt>
+                    <dd id="previewMajor" class="text-sm text-gray-800"></dd>
+                </div>
+
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Honors</dt>
+                    <dd id="previewHonors" class="text-sm text-gray-800"></dd>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-gray-400">Address</dt>
+                    <dd id="previewAddress" class="text-sm text-gray-800"></dd>
+                </div>
+
+            </dl>
+
+        </div>
+
+        <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+            <button
+                type="button"
+                onclick="closeGraduatePreview()"
+                class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+                Close
+            </button>
+            <a
+                id="previewEditLink"
+                href="#"
+                class="rounded-lg bg-ascot-green px-4 py-2 text-sm font-semibold text-white transition hover:bg-ascot-dark"
+            >
+                Edit Graduate
+            </a>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    function openGraduatePreview(btn) {
+        const d = btn.dataset;
+
+        const fullName = [d.firstName, d.middleName, d.lastName, d.suffix]
+            .filter(Boolean)
+            .join(' ');
+
+        document.getElementById('previewFullName').textContent = fullName;
+        document.getElementById('previewStudentId').textContent = d.studentId;
+        document.getElementById('previewGraduationYear').textContent = d.graduationYear || '—';
+        document.getElementById('previewCourse').textContent = d.course || '—';
+        document.getElementById('previewMajor').textContent = d.major || '—';
+        document.getElementById('previewHonors').textContent = d.honors || '—';
+        document.getElementById('previewAddress').textContent = d.address || '—';
+        document.getElementById('previewEditLink').href = 'edit_graduate.php?id=' + d.id;
+
+        const photoImg = document.getElementById('previewPhoto');
+        const noPhoto = document.getElementById('previewNoPhoto');
+
+        if (d.photo) {
+            photoImg.src = d.photo;
+            photoImg.classList.remove('hidden');
+            noPhoto.classList.add('hidden');
+            noPhoto.classList.remove('flex');
+        } else {
+            photoImg.classList.add('hidden');
+            noPhoto.classList.remove('hidden');
+            noPhoto.classList.add('flex');
+        }
+
+        const modal = document.getElementById('graduatePreviewModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeGraduatePreview() {
+        const modal = document.getElementById('graduatePreviewModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeGraduatePreview();
+    });
+</script>
 
 <?php require_once 'includes/footer.php'; ?>

@@ -1,5 +1,6 @@
 @import "tailwindcss";
-
+/*always run: npx @tailwindcss/cli -i ./frontend/src/input.css -o ./frontend/dist/output.css --watch */
+/*tailwind rebuild: npx @tailwindcss/cli -i ./frontend/src/input.css -o ./frontend/dist/output.css */
 @source "../../";
 
 @theme {
@@ -7,7 +8,6 @@
 
     --color-ascot-green: #2E8A57;
     --color-ascot-dark: #074422;
-    --color-ascot-light: #FEEE8C;
     --color-ascot-yellow: #FFDD21;
     --color-ascot-orange: #F58C0B;
 }
@@ -20,7 +20,8 @@
 
     /* Page */
     .gs-page {
-        @apply min-h-screen bg-slate-100 font-poppins text-gray-800;
+        @apply min-h-screen bg-slate-100 text-gray-800;
+        font-family: "Poppins", sans-serif;
     }
 
     .gs-main {
@@ -115,6 +116,7 @@
 
     .gs-button-secondary {
         @apply rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50;
+
     }
 
     .gs-button-danger {
@@ -155,5 +157,9 @@
 
     .gs-button-delete {
         @apply rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100;
+    }
+
+    .gs-button-view {
+        @apply rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100;
     }
 }

@@ -2,7 +2,7 @@
 $currentPage = basename($_SERVER['PHP_SELF']);
 ?>
 <aside class="gs-sidebar">
-
+    
     <!-- Brand -->
     <div class="gs-sidebar-brand">
 
