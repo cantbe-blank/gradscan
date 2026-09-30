@@ -3,10 +3,8 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/layout_helpers.php';
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
+require_once __DIR__ . '/../config/config.php';
+gs_require_role(['school_admin'], '../login.php');
 
 $school_id = $_SESSION['school_id'];
 
@@ -49,9 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $bgImage = $current['background_image'];
 
         // Remove the current background image
-        if (!empty($_POST['remove_background']) && $bgImage) {
-            gs_delete_layout_image($bgImage, $layout_id);
+        if (!empty($_POST['remove_background'])) {
             $bgImage = null;
+        }
+
+        // A background pulled out of a PowerPoint import (stored, not yet saved)
+        $imported = $_POST['imported_background'] ?? '';
+        if ($imported !== '' && gs_is_own_layout_image($imported, $layout_id)) {
+            $bgImage = $imported;
         }
 
         // Upload a new background image (replaces the old one)
@@ -59,9 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $upload = gs_save_layout_background($_FILES['background_image'], $layout_id);
 
             if ($upload['ok']) {
-                if ($bgImage) {
-                    gs_delete_layout_image($bgImage, $layout_id);
-                }
                 $bgImage = $upload['path'];
             } else {
                 $errors[] = $upload['error'] . ' The rest of your changes were still saved.';
@@ -74,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $config = gs_normalize_layout_config([
             'background_color' => $_POST['background_color'] ?? null,
             'header_text'      => $_POST['header_text'] ?? '',
+            'display_seconds'  => $_POST['display_seconds'] ?? $current['display_seconds'],
             'background_image' => $bgImage,
             'fields'           => is_array($postedFields) ? $postedFields : $current['fields'],
         ]);
@@ -88,94 +89,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         mysqli_stmt_bind_param($updateStmt, 'sii', $configJson, $layout_id, $school_id);
         mysqli_stmt_execute($updateStmt);
 
+        // Drop replaced images and any unsaved PowerPoint imports
+        gs_cleanup_layout_images($layout_id, $config['background_image']);
+
         $success = true;
         $successMessage = 'Layout saved successfully.';
     }
 }
 
 // --- Step: Import from PowerPoint (.pptx) ---
+// Returns the slide's layout as JSON for the editor to preview. Nothing is
+// saved here: the school reviews it and clicks Save Layout.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'import_pptx') {
+    header('Content-Type: application/json');
+
+    $respond = function (array $data) {
+        echo json_encode($data);
+        exit;
+    };
+
     $layout_id = (int)($_POST['layout_id'] ?? 0);
 
-    $curStmt = mysqli_prepare($conn, "SELECT layout_config FROM layout WHERE layout_id = ? AND school_id = ?");
+    $curStmt = mysqli_prepare($conn, "SELECT layout_id FROM layout WHERE layout_id = ? AND school_id = ?");
     mysqli_stmt_bind_param($curStmt, 'ii', $layout_id, $school_id);
     mysqli_stmt_execute($curStmt);
-    $cur = mysqli_fetch_assoc(mysqli_stmt_get_result($curStmt));
 
-    if (!$cur) {
-        $errors[] = 'Layout not found for your school.';
-    } elseif (!isset($_FILES['pptx_file']) || $_FILES['pptx_file']['error'] !== UPLOAD_ERR_OK) {
-        $errors[] = 'Please select a valid PowerPoint (.pptx) file to import.';
-    } else {
-        $ext = strtolower(pathinfo($_FILES['pptx_file']['name'], PATHINFO_EXTENSION));
-        if ($ext !== 'pptx') {
-            $errors[] = 'Only .pptx PowerPoint presentations are supported.';
+    if (!mysqli_fetch_assoc(mysqli_stmt_get_result($curStmt))) {
+        $respond(['ok' => false, 'error' => 'Layout not found for your school.']);
+    }
+
+    if (!isset($_FILES['pptx_file']) || $_FILES['pptx_file']['error'] !== UPLOAD_ERR_OK) {
+        $respond(['ok' => false, 'error' => 'Please select a valid PowerPoint (.pptx) file to import.']);
+    }
+
+    if (strtolower(pathinfo($_FILES['pptx_file']['name'], PATHINFO_EXTENSION)) !== 'pptx') {
+        $respond(['ok' => false, 'error' => 'Only .pptx PowerPoint presentations are supported.']);
+    }
+
+    $parsed = gs_parse_pptx_layout($_FILES['pptx_file']['tmp_name']);
+    if (!$parsed['ok']) {
+        $respond(['ok' => false, 'error' => $parsed['error']]);
+    }
+
+    // Store the slide's background picture now so the editor can show it;
+    // it only becomes the layout's background when the school saves.
+    $backgroundPath = null;
+    if ($parsed['background'] !== null) {
+        $stored = gs_store_layout_background($parsed['background'], $layout_id);
+        if ($stored['ok']) {
+            $backgroundPath = $stored['path'];
         } else {
-            $parsed = gs_parse_pptx_layout($_FILES['pptx_file']['tmp_name']);
-            if (!$parsed['ok']) {
-                $errors[] = $parsed['error'];
-            } else {
-                $current = gs_normalize_layout_config(json_decode($cur['layout_config'], true));
-                $bgImage = $current['background_image'];
-
-                // Handle optional background image upload alongside the PPTX
-                if (isset($_FILES['background_image']) && $_FILES['background_image']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    $upload = gs_save_layout_background($_FILES['background_image'], $layout_id);
-                    if ($upload['ok']) {
-                        if ($bgImage) {
-                            gs_delete_layout_image($bgImage, $layout_id);
-                        }
-                        $bgImage = $upload['path'];
-                    } else {
-                        $errors[] = $upload['error'] . ' Layout placements from PowerPoint were still applied.';
-                    }
-                }
-
-                // Merge parsed items and hide graduate items missing from the slide
-                $mergedFields = $current['fields'];
-                $foundCount = 0;
-                $hiddenCount = 0;
-
-                foreach (gs_default_layout_fields() as $fieldKey => $defaultField) {
-                    if (isset($parsed['fields'][$fieldKey])) {
-                        $mergedFields[$fieldKey] = array_merge(
-                            $mergedFields[$fieldKey] ?? $defaultField,
-                            $parsed['fields'][$fieldKey],
-                            ['visible' => true]
-                        );
-                        $foundCount++;
-                    } else {
-                        if (isset($mergedFields[$fieldKey])) {
-                            $mergedFields[$fieldKey]['visible'] = false;
-                            $hiddenCount++;
-                        }
-                    }
-                }
-
-                $newBgColor = $parsed['background_color'] ?? $current['background_color'];
-                $newHeaderText = !empty($parsed['header_text']) ? $parsed['header_text'] : $current['header_text'];
-
-                $config = gs_normalize_layout_config([
-                    'background_color' => $newBgColor,
-                    'header_text'      => $newHeaderText,
-                    'background_image' => $bgImage,
-                    'fields'           => $mergedFields,
-                ]);
-
-                $config['text_color']   = $config['fields']['name']['color'];
-                $config['accent_color'] = $config['fields']['honors']['color'];
-
-                $configJson = json_encode($config);
-                $updateStmt = mysqli_prepare($conn, "UPDATE layout SET layout_config = ? WHERE layout_id = ? AND school_id = ?");
-                mysqli_stmt_bind_param($updateStmt, 'sii', $configJson, $layout_id, $school_id);
-                mysqli_stmt_execute($updateStmt);
-
-                $success = true;
-                $foundList = !empty($parsed['found']) ? implode(', ', $parsed['found']) : 'none';
-                $successMessage = "PowerPoint layout imported successfully! Auto-placed {$foundCount} fields ({$foundList})." . ($hiddenCount > 0 ? " {$hiddenCount} omitted fields were set to hidden." : '');
-            }
+            $parsed['warnings'][] = $stored['error'];
         }
     }
+
+    // Clamp everything the same way a save would
+    $normalized = gs_normalize_layout_config(['fields' => $parsed['fields']])['fields'];
+    $fields = [];
+    foreach ($parsed['fields'] as $key => $field) {
+        // Keep only what the slide set, so the editor keeps the rest (e.g. a font it couldn't read)
+        $fields[$key] = array_intersect_key($normalized[$key], $field);
+    }
+
+    $respond([
+        'ok'               => true,
+        'fields'           => $fields,
+        'missing'          => $parsed['missing'],
+        'found'            => $parsed['found'],
+        'header_text'      => $parsed['header_text'],
+        'background_color' => $parsed['background_color'],
+        'background_path'  => $backgroundPath,
+        'warnings'         => $parsed['warnings'],
+    ]);
 }
 
 // --- Check if this school already has its own layout ---
@@ -312,10 +297,10 @@ require_once 'includes/sidebar.php';
                             <svg class="h-5 w-5 text-ascot-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
-                            Auto-Place from PowerPoint (.pptx)
+                            Import from PowerPoint (.pptx)
                         </h3>
                         <p class="mt-1 text-sm text-gray-500">
-                            Design in PowerPoint using our starter template, then upload the .pptx to auto-align all field positions and fonts.
+                            Design in PowerPoint using the starter template, then upload the .pptx. The background picture and every field's position, size, font, and color are loaded into the editor below for you to check before saving.
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
@@ -325,7 +310,7 @@ require_once 'includes/sidebar.php';
                             </svg>
                             Download Starter .pptx
                         </a>
-                        <button type="button" onclick="const p = document.getElementById('pptxImportPanel'); p.classList.toggle('hidden');" class="gs-button-primary inline-flex items-center gap-2 whitespace-nowrap">
+                        <button type="button" id="pptxToggle" class="gs-button-primary inline-flex items-center gap-2 whitespace-nowrap">
                             Import from PowerPoint
                         </button>
                     </div>
@@ -333,29 +318,25 @@ require_once 'includes/sidebar.php';
 
                 <!-- Collapsible Import Form -->
                 <div id="pptxImportPanel" class="hidden mt-6 border-t border-gray-200 pt-6">
-                    <form method="POST" enctype="multipart/form-data" class="grid grid-cols-1 gap-5 md:grid-cols-2">
-                        <input type="hidden" name="action" value="import_pptx">
-                        <input type="hidden" name="layout_id" value="<?= (int)$myLayout['layout_id'] ?>">
-
+                    <div class="grid grid-cols-1 gap-5 md:grid-cols-[1fr_auto] md:items-end">
                         <div>
-                            <label class="gs-label">PowerPoint Presentation (.pptx) <span class="text-red-500">*</span></label>
-                            <input type="file" name="pptx_file" accept=".pptx" required
+                            <label class="gs-label" for="pptx_file">PowerPoint Presentation (.pptx)</label>
+                            <input type="file" id="pptx_file" accept=".pptx"
                                 class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 file:mr-4 file:rounded-md file:border-0 file:bg-green-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ascot-dark hover:file:bg-green-100">
-                            <p class="mt-1.5 text-xs text-gray-400">Slide 1 contains the placeholders ({{name}}, {{course}}, {{student_id}}, {{honors}}, {{year}}, {{header}}, photo). Missing items will be hidden.</p>
                         </div>
+                        <div class="flex items-center gap-3">
+                            <button type="button" id="pptxImportBtn" class="gs-button-primary whitespace-nowrap">Load into Editor</button>
+                            <button type="button" id="pptxCancel" class="gs-button-secondary py-3">Cancel</button>
+                        </div>
+                    </div>
 
-                        <div>
-                            <label class="gs-label">Design Background Image <span class="font-normal text-gray-400">(optional)</span></label>
-                            <input type="file" name="background_image" accept="image/png,image/jpeg,image/webp"
-                                class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 file:mr-4 file:rounded-md file:border-0 file:bg-green-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-ascot-dark hover:file:bg-green-100">
-                            <p class="mt-1.5 text-xs text-gray-400">Export Slide 1 as a PNG/JPG in PowerPoint, and upload it here as your 16:9 background.</p>
-                        </div>
+                    <ul class="mt-4 list-disc space-y-1 pl-5 text-xs leading-5 text-gray-500">
+                        <li>The first slide is the layout. Mark each box with a placeholder in its text: <code>{{name}}</code>, <code>{{course}}</code>, <code>{{student_id}}</code>, <code>{{honors}}</code>, <code>{{year}}</code>, <code>{{header}}</code>, or name the box in the Selection Pane (e.g. &ldquo;Name&rdquo;). Name the photo box &ldquo;photo&rdquo;.</li>
+                        <li>Delete a placeholder to hide that field. Text typed next to <code>{{header}}</code> becomes the header text.</li>
+                        <li>Background: set the slide&rsquo;s picture with Format Background &gt; Picture or texture fill, or place one picture covering the whole slide. Anything else drawn on the slide is not included.</li>
+                    </ul>
 
-                        <div class="md:col-span-2 flex items-center gap-3 pt-2">
-                            <button type="submit" class="gs-button-primary">Import &amp; Apply Layout</button>
-                            <button type="button" onclick="document.getElementById('pptxImportPanel').classList.add('hidden')" class="gs-button-secondary">Cancel</button>
-                        </div>
-                    </form>
+                    <div id="pptxResult" class="mt-4 hidden"></div>
                 </div>
             </div>
 
@@ -365,6 +346,7 @@ require_once 'includes/sidebar.php';
                 <input type="hidden" name="action" value="save_layout">
                 <input type="hidden" name="layout_id" value="<?= (int)$myLayout['layout_id'] ?>">
                 <input type="hidden" name="fields_json" id="fields_json" value="">
+                <input type="hidden" name="imported_background" id="imported_background" value="">
 
                 <!-- Canvas -->
                 <div class="gs-card p-6">
@@ -422,6 +404,22 @@ require_once 'includes/sidebar.php';
                     </div>
 
                     <div class="gs-card p-6">
+                        <h3 class="mb-4 text-base font-bold text-ascot-dark">Display Timing</h3>
+
+                        <label class="gs-label" for="display_seconds">Minimum time on screen per graduate</label>
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="number" name="display_seconds" id="display_seconds"
+                                min="1" max="60" step="1" required
+                                class="gs-input w-28"
+                                value="<?= (int)$config['display_seconds'] ?>"
+                            >
+                            <span class="text-sm text-gray-500">seconds</span>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-400">If the next graduate is scanned sooner, they wait in a queue on the scanner and appear once this time has passed. 1–60 seconds.</p>
+                    </div>
+
+                    <div class="gs-card p-6">
                         <h3 class="mb-3 text-base font-bold text-ascot-dark">Items</h3>
                         <div id="fieldList" class="flex flex-col gap-1"></div>
 
@@ -472,6 +470,10 @@ require_once 'includes/sidebar.php';
                         </div>
                     </div>
 
+                    <p id="unsavedNote" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                        You have unsaved changes.
+                    </p>
+
                     <button type="submit" class="gs-button-primary w-full text-center">Save Layout</button>
 
                 </div>
@@ -502,6 +504,7 @@ require_once 'includes/sidebar.php';
                 const headerInput = document.getElementById('header_text');
                 const bgFile = document.getElementById('background_image');
                 const removeBg = document.getElementById('remove_background');
+                const importedBg = document.getElementById('imported_background');
                 const fieldList = document.getElementById('fieldList');
 
                 const ctlTitle = document.getElementById('ctlTitle');
@@ -653,7 +656,12 @@ require_once 'includes/sidebar.php';
                     drag.el.style.top = f.y + '%';
                 });
 
-                function endDrag() { drag = null; }
+                function endDrag() {
+                    if (drag && (fields[drag.key].x !== drag.ox || fields[drag.key].y !== drag.oy)) {
+                        markDirty();
+                    }
+                    drag = null;
+                }
                 canvas.addEventListener('pointerup', endDrag);
                 canvas.addEventListener('pointercancel', endDrag);
 
@@ -694,6 +702,7 @@ require_once 'includes/sidebar.php';
                 bgFile.addEventListener('change', function () {
                     if (bgFile.files && bgFile.files[0]) {
                         bgUrl = URL.createObjectURL(bgFile.files[0]);
+                        importedBg.value = '';
                         if (removeBg) removeBg.checked = false;
                         renderCanvas();
                     }
@@ -703,6 +712,7 @@ require_once 'includes/sidebar.php';
                     removeBg.addEventListener('change', function () {
                         if (removeBg.checked) {
                             bgUrl = null;
+                            importedBg.value = '';
                             bgFile.value = '';
                             renderCanvas();
                         }
@@ -723,11 +733,128 @@ require_once 'includes/sidebar.php';
                     });
                     renderCanvas();
                     syncControls();
+                    markDirty();
+                });
+
+                // --- Unsaved changes ---
+                const layoutForm = document.getElementById('layoutForm');
+                const unsavedNote = document.getElementById('unsavedNote');
+                let dirty = false;
+
+                function markDirty() {
+                    dirty = true;
+                    unsavedNote.classList.remove('hidden');
+                }
+
+                layoutForm.addEventListener('input', markDirty);
+                layoutForm.addEventListener('change', markDirty);
+
+                window.addEventListener('beforeunload', function (e) {
+                    if (dirty) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
                 });
 
                 // --- Save: send the field positions along with the form ---
-                document.getElementById('layoutForm').addEventListener('submit', function () {
+                layoutForm.addEventListener('submit', function () {
                     document.getElementById('fields_json').value = JSON.stringify(fields);
+                    dirty = false;
+                });
+
+                // --- Import from PowerPoint: load the slide into the editor (not saved yet) ---
+                const pptxPanel = document.getElementById('pptxImportPanel');
+                const pptxFile = document.getElementById('pptx_file');
+                const pptxBtn = document.getElementById('pptxImportBtn');
+                const pptxResult = document.getElementById('pptxResult');
+
+                document.getElementById('pptxToggle').addEventListener('click', function () {
+                    pptxPanel.classList.toggle('hidden');
+                });
+                document.getElementById('pptxCancel').addEventListener('click', function () {
+                    pptxPanel.classList.add('hidden');
+                });
+
+                function esc(v) {
+                    return String(v).replace(/[&<>"']/g, function (c) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+                    });
+                }
+
+                function showImportResult(kind, html) {
+                    pptxResult.className = 'mt-4 gs-alert ' + kind;
+                    pptxResult.innerHTML = html;
+                }
+
+                pptxBtn.addEventListener('click', function () {
+                    if (!pptxFile.files || !pptxFile.files[0]) {
+                        showImportResult('gs-alert-error', 'Choose a .pptx file first.');
+                        return;
+                    }
+
+                    const data = new FormData();
+                    data.append('action', 'import_pptx');
+                    data.append('layout_id', layoutForm.elements.layout_id.value);
+                    data.append('pptx_file', pptxFile.files[0]);
+
+                    pptxBtn.disabled = true;
+                    pptxBtn.textContent = 'Loading...';
+
+                    fetch('layouts.php', { method: 'POST', body: data })
+                        .then(function (res) { return res.json(); })
+                        .then(function (r) {
+                            if (!r.ok) {
+                                showImportResult('gs-alert-error', esc(r.error));
+                                return;
+                            }
+
+                            // Fields on the slide take its settings; fields missing from it are hidden
+                            FIELD_ORDER.forEach(function (key) {
+                                if (r.fields[key]) {
+                                    Object.assign(fields[key], r.fields[key], { visible: true });
+                                } else {
+                                    fields[key].visible = false;
+                                }
+                            });
+
+                            if (r.header_text) headerInput.value = r.header_text;
+                            if (r.background_color) bgColor.value = r.background_color;
+
+                            if (r.background_path) {
+                                importedBg.value = r.background_path;
+                                bgUrl = '../' + r.background_path;
+                                bgFile.value = '';
+                                if (removeBg) removeBg.checked = false;
+                            }
+
+                            renderCanvas();
+                            renderFieldList();
+                            syncControls();
+                            markDirty();
+
+                            const label = function (key) { return esc(LABELS[key] || key); };
+                            let html = '<strong>Loaded into the editor. Check it, then click Save Layout.</strong>'
+                                + '<p class="mt-1">Placed: ' + (r.found.length ? r.found.map(label).join(', ') : 'none') + '.</p>';
+                            if (r.missing.length) {
+                                html += '<p>Hidden (not on the slide): ' + r.missing.map(label).join(', ') + '.</p>';
+                            }
+                            if (r.background_path) {
+                                html += '<p>Background picture loaded from the slide.</p>';
+                            }
+                            if (r.warnings.length) {
+                                html += '<ul class="mt-2 list-inside list-disc">'
+                                    + r.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('')
+                                    + '</ul>';
+                            }
+                            showImportResult(r.warnings.length ? 'gs-alert-warning' : 'gs-alert-success', html);
+                        })
+                        .catch(function () {
+                            showImportResult('gs-alert-error', 'The import failed. Your session may have expired; reload the page and try again.');
+                        })
+                        .finally(function () {
+                            pptxBtn.disabled = false;
+                            pptxBtn.textContent = 'Load into Editor';
+                        });
                 });
 
                 renderCanvas();

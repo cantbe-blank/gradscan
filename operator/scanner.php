@@ -147,7 +147,8 @@ require_once 'includes/sidebar.php';
                         <li>Plug the SM8070 scanner into a USB port. It types like a keyboard, so no driver is needed.</li>
                         <li>Move the audience display window to the projector. Double-click it to go fullscreen.</li>
                         <li>Scan the graduate's QR code. It is submitted automatically.</li>
-                        <li>For the first graduate, press <strong>Display Now</strong>. Later scans appear on the audience screen right away.</li>
+                        <li>For the first graduate, press <strong>Display Now</strong>. After that, graduates appear in scan order, each staying on screen for the school's minimum time (set in Layout Management).</li>
+                        <li>Scanned too soon? The graduate waits in the <strong>Display Queue</strong>. Press <strong>Show Next Now</strong> to skip the wait.</li>
                     </ol>
 
                     <p class="mt-4 text-xs leading-5 text-gray-400">
@@ -180,6 +181,45 @@ require_once 'includes/sidebar.php';
 
                 </section>
                 <?php endif; ?>
+
+                <!-- Display Queue: who is on screen and who is waiting -->
+                <section class="gs-card">
+
+                    <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                        <h3 class="font-semibold text-gray-800">
+                            Display Queue
+                        </h3>
+
+                        <div class="flex items-center gap-3">
+                            <span id="queueCount" class="gs-badge gs-badge-neutral">0 waiting</span>
+
+                            <button
+                                id="showNextBtn"
+                                type="button"
+                                class="gs-button-secondary hidden"
+                                onclick="showNextNow()"
+                            >
+                                Show Next Now
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-6">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">On screen</p>
+                        <p id="nowShowing" class="mt-1 text-lg font-semibold text-ascot-dark">Nobody yet</p>
+
+                        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                            <div id="holdBar" class="h-full w-0 rounded-full bg-ascot-green"></div>
+                        </div>
+                        <p id="holdText" class="mt-1 text-xs text-gray-400"></p>
+
+                        <p class="mt-5 text-xs font-semibold uppercase tracking-wider text-gray-400">Up next</p>
+                        <ol id="queueList" class="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                            <li class="list-none -ml-5 text-gray-400">Nobody waiting.</li>
+                        </ol>
+                    </div>
+
+                </section>
 
                 <!-- Scan Result -->
                 <section id="resultCard" class="gs-card hidden">
@@ -214,13 +254,14 @@ require_once 'includes/sidebar.php';
                                     <th class="px-6 py-3">Student ID</th>
                                     <th class="px-6 py-3">Name</th>
                                     <th class="px-6 py-3">Course</th>
-                                    <th class="px-6 py-3">Time</th>
+                                    <th class="px-6 py-3">Scanned At</th>
+                                    <th class="px-6 py-3" title="Time since the previous graduate was scanned">Interval</th>
                                 </tr>
                             </thead>
 
                             <tbody id="sessionTableBody" class="divide-y divide-gray-100">
                                 <tr id="emptyRow">
-                                    <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-400">
+                                    <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-400">
                                         No scans yet this session.
                                     </td>
                                 </tr>
@@ -269,15 +310,22 @@ require_once 'includes/sidebar.php';
     const displayChannel = new BroadcastChannel('gradscan_display');
     const inputChannel   = new BroadcastChannel('gradscan_scanner_input');
     let displayWindow      = null;
-    let pendingDisplayData = null;
     let sessionScans       = [];
     let scanCount          = 0;
     let lastToken          = '';
     let lastScanTime       = 0;
     let processingLock     = false;
     let resetTimer         = null;
-    // AUTO-DISPLAY: false on first scan (manual), true for all subsequent scans
+    // AUTO-DISPLAY: false until the operator presses Display Now for the first graduate
     let autoDisplay        = false;
+
+    // Display queue: successful scans wait here until the current graduate has
+    // been on screen for their school's display_seconds.
+    const displayQueue = [];
+    let holdUntil      = 0;     // ms timestamp when the current graduate may be replaced
+    let holdMs         = 0;
+    let queueTimer     = null;
+    let lastScanServer = null;  // server time (ms) of the previous successful scan
 
     function esc(value) {
         return String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -363,17 +411,13 @@ require_once 'includes/sidebar.php';
             setStatusSuccess('Scanned: <strong>' + esc(fullName) + '</strong>');
             showResultSuccess(g, fullName);
 
-            pendingDisplayData = data;
+            // Time since the previous graduate, from server timestamps
+            const serverMs = Date.parse(String(data.scanned_at).replace(' ', 'T'));
+            const interval = lastScanServer !== null && !isNaN(serverMs) ? Math.round((serverMs - lastScanServer) / 1000) : null;
+            if (!isNaN(serverMs)) lastScanServer = serverMs;
 
-            // AUTO-DISPLAY LOGIC:
-            // First scan -> show "Display Now" button (manual control).
-            // All subsequent scans -> push to audience display automatically.
-            if (autoDisplay) {
-                displayChannel.postMessage(pendingDisplayData);
-                pendingDisplayData = null;
-            } else {
-                displayNowBtn.classList.remove('hidden');
-            }
+            data.name = fullName;
+            enqueueDisplay(data);
 
             // Append to session log
             scanCount++;
@@ -382,7 +426,9 @@ require_once 'includes/sidebar.php';
                 student_id: g.student_id,
                 name:       fullName,
                 course:     g.course,
-                time:       new Date().toLocaleTimeString()
+                scanned_at: data.scanned_at,
+                time:       data.scanned_at_text,
+                interval:   interval
             };
             sessionScans.push(scan);
             prependSessionRow(scanCount, scan);
@@ -413,7 +459,7 @@ require_once 'includes/sidebar.php';
         if (!focused) {
             focusIndicator.innerHTML = '<span class="gs-badge gs-badge-warning">Not listening. Click this page to resume scanning.</span>';
         } else if (autoDisplay) {
-            focusIndicator.innerHTML = '<span class="gs-badge gs-badge-info">Auto-Display ON. Scans display instantly.</span>';
+            focusIndicator.innerHTML = '<span class="gs-badge gs-badge-info">Auto-Display ON. Graduates display in scan order.</span>';
         } else {
             focusIndicator.innerHTML = '<span class="gs-badge gs-badge-success">Listening for scanner input</span>';
         }
@@ -485,7 +531,8 @@ require_once 'includes/sidebar.php';
             <td class="gs-table-cell">${esc(scan.student_id)}</td>
             <td class="gs-table-cell">${esc(scan.name)}</td>
             <td class="gs-table-cell">${esc(scan.course)}</td>
-            <td class="gs-table-cell">${esc(scan.time)}</td>`;
+            <td class="gs-table-cell">${esc(scan.time)}</td>
+            <td class="gs-table-cell">${esc(formatSeconds(scan.interval))}</td>`;
 
         // Only the newest row stays highlighted
         const previous = sessionBody.firstElementChild;
@@ -494,29 +541,110 @@ require_once 'includes/sidebar.php';
         sessionBody.insertBefore(tr, sessionBody.firstChild);
     }
 
-    // Display Trigger
-    function triggerDisplay() {
-        if (!pendingDisplayData) return;
+    function formatSeconds(sec) {
+        if (sec === null || sec === undefined) return '—';
+        if (sec < 60) return sec + 's';
+        return Math.floor(sec / 60) + 'm ' + String(sec % 60).padStart(2, '0') + 's';
+    }
 
-        displayChannel.postMessage(pendingDisplayData);
-        pendingDisplayData = null;
-        displayNowBtn.classList.add('hidden');
-        displayNowBtn.blur();
+    // Display Queue
+    const queueCountEl = document.getElementById('queueCount');
+    const queueListEl  = document.getElementById('queueList');
+    const nowShowingEl = document.getElementById('nowShowing');
+    const holdBarEl    = document.getElementById('holdBar');
+    const holdTextEl   = document.getElementById('holdText');
+    const showNextBtn  = document.getElementById('showNextBtn');
 
-        // First manual display done: switch to auto-display for all future scans
-        if (!autoDisplay) {
-            autoDisplay = true;
-            setFocusBadge(true);
+    function enqueueDisplay(data) {
+        displayQueue.push(data);
+        renderQueue();
+        pumpQueue();
+    }
+
+    // Shows the next graduate once the current one has had their minimum time
+    function pumpQueue() {
+        clearTimeout(queueTimer);
+        queueTimer = null;
+
+        if (!autoDisplay || displayQueue.length === 0) {
+            renderQueue();
+            return;
         }
+
+        const wait = holdUntil - Date.now();
+        if (wait > 0) {
+            queueTimer = setTimeout(pumpQueue, wait);
+            renderQueue();
+            return;
+        }
+
+        showOnDisplay(displayQueue.shift());
+        pumpQueue();
+    }
+
+    function showOnDisplay(data) {
+        displayChannel.postMessage(data);
+        holdMs = Math.max(1, Number(data.display_seconds) || 5) * 1000;
+        holdUntil = Date.now() + holdMs;
+        nowShowingEl.textContent = data.name;
+        renderQueue();
+    }
+
+    function renderQueue() {
+        const n = displayQueue.length;
+        queueCountEl.textContent = n + ' waiting';
+        queueCountEl.className = 'gs-badge ' + (n ? 'gs-badge-warning' : 'gs-badge-neutral');
+
+        queueListEl.innerHTML = n
+            ? displayQueue.map(d => '<li>' + esc(d.name) + '</li>').join('')
+            : '<li class="list-none -ml-5 text-gray-400">Nobody waiting.</li>';
+
+        // Before the first Display Now, the button starts the queue
+        displayNowBtn.classList.toggle('hidden', autoDisplay || n === 0);
+        showNextBtn.classList.toggle('hidden', !autoDisplay || n === 0 || holdUntil <= Date.now());
+    }
+
+    // Countdown for the graduate currently on screen
+    setInterval(function () {
+        const left = holdUntil - Date.now();
+        if (!holdMs || left <= 0) {
+            holdBarEl.style.width = holdMs ? '100%' : '0';
+            holdTextEl.textContent = holdMs ? 'Minimum time reached. The next scan shows immediately.' : '';
+            showNextBtn.classList.add('hidden');
+            return;
+        }
+        holdBarEl.style.width = (100 - left / holdMs * 100) + '%';
+        holdTextEl.textContent = 'Next graduate can show in ' + Math.ceil(left / 1000) + 's';
+    }, 200);
+
+    // Display Trigger: the first graduate is shown manually, then the queue runs itself
+    function triggerDisplay() {
+        if (displayQueue.length === 0) return;
+
+        displayNowBtn.blur();
+        autoDisplay = true;
+        holdUntil = 0;
+        setFocusBadge(true);
+        pumpQueue();
+    }
+
+    // Operator override: show the next waiting graduate without waiting
+    function showNextNow() {
+        showNextBtn.blur();
+        holdUntil = 0;
+        pumpQueue();
     }
 
     // End Session
     function endSession() {
+        if (displayQueue.length > 0 && !confirm(displayQueue.length + ' graduate(s) are still waiting to be displayed. End the session anyway?')) {
+            return;
+        }
         if (sessionScans.length > 0) {
             const cell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-            let csv = 'Student ID,Name,Course,Time\n';
+            let csv = 'Student ID,Name,Course,Scanned At,Interval (seconds)\n';
             sessionScans.forEach(s => {
-                csv += [s.student_id, s.name, s.course, s.time].map(cell).join(',') + '\n';
+                csv += [s.student_id, s.name, s.course, s.scanned_at, s.interval ?? ''].map(cell).join(',') + '\n';
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const link = document.createElement('a');

@@ -1,19 +1,15 @@
 <?php
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
+require_once __DIR__ . '/../config/config.php';
+gs_require_role(['school_admin'], '../login.php');
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use chillerlan\QRCode\QRCode;
-use chillerlan\QRCode\QROptions;
-use chillerlan\QRCode\Output\QRGdImagePNG;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../config/qr_helpers.php';
 $school_id = $_SESSION['school_id'];
 
 $errors = [];
@@ -68,27 +64,8 @@ function insertGraduateAndGenerateQr(
     mysqli_stmt_execute($insertStmt);
     $graduate_id = mysqli_insert_id($conn);
 
-    // --- Automatically generate the QR code, same as before ---
-    $qr_token = bin2hex(random_bytes(16));
-
-    $options = new QROptions([
-        'outputInterface' => QRGdImagePNG::class,
-        'outputBase64'    => true,
-    ]);
-    $qrcode = new QRCode($options);
-    $qrImageData = $qrcode->render($qr_token);
-
-    $qrDir = __DIR__ . '/../qrcodes/';
-    if (!is_dir($qrDir)) {
-        mkdir($qrDir, 0755, true);
-    }
-    $qrFilename = 'qr_' . $graduate_id . '.png';
-    $qrData = base64_decode(explode(',', $qrImageData)[1]);
-    file_put_contents($qrDir . $qrFilename, $qrData);
-
-    $qrStmt = mysqli_prepare($conn, "INSERT INTO qr_code (graduate_id, qr_token, qr_status) VALUES (?, ?, 'active')");
-    mysqli_stmt_bind_param($qrStmt, 'is', $graduate_id, $qr_token);
-    mysqli_stmt_execute($qrStmt);
+    // --- Issue the graduate's QR code (images are rendered on request, see qr.php) ---
+    gs_issue_qr($conn, $graduate_id);
 
     return $graduate_id;
 }

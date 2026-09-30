@@ -1,10 +1,8 @@
 <?php
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
+require_once __DIR__ . '/../config/config.php';
+gs_require_role(['school_admin'], '../login.php');
 
 require_once __DIR__ . '/../config/config.php';
 $school_id = $_SESSION['school_id'];
@@ -35,6 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deleteStmt = mysqli_prepare($conn, "DELETE FROM graduate WHERE graduate_id = ? AND school_id = ?");
         mysqli_stmt_bind_param($deleteStmt, 'ii', $graduate_id, $school_id);
         mysqli_stmt_execute($deleteStmt);
+
+        require_once __DIR__ . '/../config/qr_helpers.php';
+        gs_delete_legacy_qr_file((int)$graduate_id);
 
         header('Location: graduates.php?deleted=1');
         exit;

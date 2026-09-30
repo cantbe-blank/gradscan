@@ -123,6 +123,10 @@
         @apply rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600;
     }
 
+    .gs-button-danger-solid {
+        @apply rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+    }
+
 
     /* Forms */
     .gs-label {
@@ -199,6 +203,10 @@
         @apply border-red-200 bg-red-50 text-red-700;
     }
 
+    .gs-alert-warning {
+        @apply border-amber-200 bg-amber-50 text-amber-800;
+    }
+
 
     /* Badges */
     .gs-badge {
@@ -219,6 +227,14 @@
 
     .gs-badge-error {
         @apply bg-red-100 text-red-700;
+    }
+
+    .gs-badge-neutral {
+        @apply bg-gray-100 text-gray-600;
+    }
+
+    .gs-badge-dark {
+        @apply bg-gray-800 text-white;
     }
 }
 

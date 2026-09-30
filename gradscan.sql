@@ -117,6 +117,8 @@ CREATE TABLE `scan_log` (
   `scan_id` int(11) NOT NULL,
   `qr_id` int(11) DEFAULT NULL,
   `operator_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
+  `graduation_year` int(11) DEFAULT NULL,
   `scan_status` enum('success','used','expired','invalidated','not_found') NOT NULL,
   `scanned_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -287,7 +289,8 @@ ALTER TABLE `qr_code`
 ALTER TABLE `scan_log`
   ADD PRIMARY KEY (`scan_id`),
   ADD KEY `qr_id` (`qr_id`),
-  ADD KEY `operator_id` (`operator_id`);
+  ADD KEY `operator_id` (`operator_id`),
+  ADD KEY `school_year_scanned` (`school_id`,`graduation_year`,`scanned_at`);
 
 --
 -- Indexes for table `school`
@@ -372,7 +375,8 @@ ALTER TABLE `qr_code`
 --
 ALTER TABLE `scan_log`
   ADD CONSTRAINT `scan_log_ibfk_1` FOREIGN KEY (`qr_id`) REFERENCES `qr_code` (`qr_id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `scan_log_ibfk_2` FOREIGN KEY (`operator_id`) REFERENCES `user` (`user_id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `scan_log_ibfk_2` FOREIGN KEY (`operator_id`) REFERENCES `user` (`user_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `scan_log_ibfk_3` FOREIGN KEY (`school_id`) REFERENCES `school` (`school_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `user`

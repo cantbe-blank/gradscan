@@ -13,4 +13,6 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
+require_once __DIR__ . '/app.php';
+
 ?>

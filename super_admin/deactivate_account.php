@@ -47,116 +47,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+
+$root = '../';
+$pageTitle = 'GradScan | Account Status';
+$topbarTitle = 'Account Status';
+$activeNav = null;
+
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>GradScan | <?= $actionLabel ?> Account</title>
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="../AdminLTE-3.2.0/dist/css/adminlte.min.css">
-</head>
-<body class="hold-transition sidebar-mini layout-fixed">
-<div class="wrapper">
 
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light">
-        <ul class="navbar-nav">
-            <li class="nav-item">
-                <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-            </li>
-        </ul>
-        <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-                <span class="nav-link"><?= $_SESSION['full_name'] ?> (Super Admin)</span>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="../logout.php">Logout</a>
-            </li>
-        </ul>
-    </nav>
+<div class="gs-main">
 
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-        <a href="dashboard.php" class="brand-link">
-            <span class="brand-text font-weight-light">GradScan</span>
-        </a>
-        <div class="sidebar">
-            <nav class="mt-2">
-                <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
-                    <li class="nav-item">
-                        <a href="super_admin_schools.php" class="nav-link">
-                            <i class="nav-icon fas fa-building"></i>
-                            <p>Manage Schools</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="school_admins.php" class="nav-link">
-                            <i class="nav-icon fas fa-user-tie"></i>
-                            <p>Manage School Admins</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="operators.php" class="nav-link">
-                            <i class="nav-icon fas fa-user-cog"></i>
-                            <p>Manage Operators</p>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="reports.php" class="nav-link">
-                            <i class="nav-icon fas fa-chart-bar"></i>
-                            <p>View Reports</p>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    </aside>
+    <?php require __DIR__ . '/includes/topbar.php'; ?>
 
-    <div class="content-wrapper">
-        <div class="content-header">
-            <h1><?= $actionLabel ?> Account</h1>
-        </div>
-        <div class="content">
-            <div class="card">
-                <div class="card-body">
 
-                    <div class="alert alert-warning">
-                        <strong>Are you sure you want to <?= strtolower($actionLabel) ?> this account?</strong>
-                    </div>
+    <main class="gs-content">
 
-                    <table class="table table-bordered w-auto">
-                        <tr>
-                            <th>Username</th>
-                            <td><?= htmlspecialchars($account['username']) ?></td>
-                        </tr>
-                        <tr>
-                            <th>Full Name</th>
-                            <td><?= htmlspecialchars($account['full_name']) ?></td>
-                        </tr>
-                        <tr>
-                            <th>Role</th>
-                            <td><?= htmlspecialchars($account['role']) ?></td>
-                        </tr>
-                        <tr>
-                            <th>Current Status</th>
-                            <td><?= htmlspecialchars($account['status']) ?></td>
-                        </tr>
-                    </table>
+        <section class="gs-page-header">
+            <h1 class="gs-page-title"><?= $actionLabel ?> Account</h1>
+            <p class="gs-page-description">Change whether this account can sign in to GradScan.</p>
+        </section>
 
-                    <form method="POST">
-                        <input type="hidden" name="id" value="<?= $account['user_id'] ?>">
-                        <button type="submit" name="confirm" value="yes" class="btn btn-danger">Yes, <?= $actionLabel ?></button>
-                        <button type="submit" name="confirm" value="no" class="btn btn-secondary">Cancel</button>
-                    </form>
+        <div class="gs-card max-w-2xl p-8">
 
-                </div>
+            <div class="gs-alert <?= $actionLabel === 'Deactivate' ? 'gs-alert-warning' : 'gs-alert-info' ?> mb-6">
+                <strong>Are you sure you want to <?= strtolower($actionLabel) ?> this account?</strong>
             </div>
+
+            <dl class="mb-8 grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 text-sm">
+
+                <dt class="font-semibold text-gray-500">Username</dt>
+                <dd class="text-gray-800"><?= htmlspecialchars($account['username']) ?></dd>
+
+                <dt class="font-semibold text-gray-500">Full Name</dt>
+                <dd class="text-gray-800"><?= htmlspecialchars($account['full_name']) ?></dd>
+
+                <dt class="font-semibold text-gray-500">Role</dt>
+                <dd class="text-gray-800"><?= htmlspecialchars($account['role']) ?></dd>
+
+                <dt class="font-semibold text-gray-500">Current Status</dt>
+                <dd>
+                    <span class="gs-badge capitalize <?= $account['status'] === 'active' ? 'gs-badge-success' : 'gs-badge-neutral' ?>">
+                        <?= htmlspecialchars($account['status']) ?>
+                    </span>
+                </dd>
+
+            </dl>
+
+            <form method="POST" class="flex gap-3">
+                <input type="hidden" name="id" value="<?= $account['user_id'] ?>">
+                <button type="submit" name="confirm" value="yes" class="<?= $actionLabel === 'Deactivate' ? 'gs-button-danger-solid' : 'gs-button-primary' ?>">Yes, <?= $actionLabel ?></button>
+                <button type="submit" name="confirm" value="no" class="gs-button-secondary py-3">Cancel</button>
+            </form>
+
         </div>
-    </div>
+
+    </main>
 
 </div>
 
-<script src="../AdminLTE-3.2.0/plugins/jquery/jquery.min.js"></script>
-<script src="../AdminLTE-3.2.0/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../AdminLTE-3.2.0/dist/js/adminlte.min.js"></script>
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

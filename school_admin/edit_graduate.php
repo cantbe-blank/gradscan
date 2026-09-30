@@ -2,10 +2,8 @@
 require_once __DIR__ . '/../config/config.php';
 session_start();
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
+require_once __DIR__ . '/../config/config.php';
+gs_require_role(['school_admin'], '../login.php');
 
 $school_id = $_SESSION['school_id'];
 

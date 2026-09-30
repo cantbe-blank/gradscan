@@ -1,13 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/config.php';
-
-session_start();
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ../login.php');
-    exit;
-}
+gs_require_role(['school_admin'], '../login.php');
 
 $school_id = $_SESSION['school_id'];
 $search = trim($_GET['q'] ?? '');
@@ -18,7 +12,8 @@ if ($search !== '') {
 
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo
+        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo,
+                (SELECT q.qr_status FROM qr_code q WHERE q.graduate_id = graduate.graduate_id ORDER BY q.qr_id DESC LIMIT 1) AS qr_status
          FROM graduate
          WHERE school_id = ?
          AND (
@@ -43,7 +38,8 @@ if ($search !== '') {
 
     $stmt = mysqli_prepare(
         $conn,
-        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo
+        "SELECT graduate_id, school_id, student_id, first_name, middle_name, last_name, suffix, course, major, address, honors, graduation_year, photo,
+                (SELECT q.qr_status FROM qr_code q WHERE q.graduate_id = graduate.graduate_id ORDER BY q.qr_id DESC LIMIT 1) AS qr_status
          FROM graduate
          WHERE school_id = ?"
     );
@@ -124,15 +120,32 @@ require_once 'includes/sidebar.php';
                 </p>
             </div>
 
-            <a
-                href="add_graduate.php"
-                class="gs-button-primary whitespace-nowrap"
-            >
-                + Add Graduate
-            </a>
+            <div class="flex flex-wrap gap-2">
+
+                <a
+                    href="qr_cards.php"
+                    class="gs-button-secondary whitespace-nowrap py-3"
+                >
+                    Print QR Cards
+                </a>
+
+                <a
+                    href="add_graduate.php"
+                    class="gs-button-primary whitespace-nowrap"
+                >
+                    + Add Graduate
+                </a>
+
+            </div>
 
         </section>
 
+
+        <?php if (isset($_GET['qr_reissued'])): ?>
+            <div class="gs-alert gs-alert-success mb-6">
+                A new QR code was issued. The previous code no longer works; give the graduate the new one.
+            </div>
+        <?php endif; ?>
 
         <!-- Search -->
         <section class="gs-card mb-6 p-5">
@@ -300,6 +313,7 @@ require_once 'includes/sidebar.php';
                                             data-honors="<?= htmlspecialchars($honorLabels[$row['honors']] ?? $row['honors']) ?>"
                                             data-graduation-year="<?= htmlspecialchars($row['graduation_year']) ?>"
                                             data-photo="<?= $row['photo'] ? htmlspecialchars('../' . $row['photo']) : '' ?>"
+                                            data-qr-status="<?= htmlspecialchars($row['qr_status'] ?? '') ?>"
                                         >
                                             View
                                         </button>
@@ -345,7 +359,7 @@ require_once 'includes/sidebar.php';
     onclick="if (event.target === this) closeGraduatePreview()"
 >
 
-    <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+    <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl">
 
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <h3 class="text-lg font-bold text-ascot-dark">Graduate Details</h3>
@@ -416,6 +430,43 @@ require_once 'includes/sidebar.php';
 
         </div>
 
+        <!-- QR code -->
+        <div class="border-t border-gray-200 px-6 py-5">
+
+            <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
+
+                <div class="mx-auto aspect-square w-40 shrink-0 rounded-xl border border-gray-200 bg-white p-2 sm:mx-0 sm:w-44">
+                    <img id="previewQr" src="" alt="Graduate QR code" class="h-full w-full">
+                    <div id="previewNoQr" class="hidden h-full w-full items-center justify-center text-center text-xs text-gray-400">
+                        No QR code issued yet
+                    </div>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">QR Code</p>
+                        <span id="previewQrStatus" class="gs-badge capitalize"></span>
+                    </div>
+
+                    <p id="previewQrHint" class="mt-1 text-xs leading-5 text-gray-500"></p>
+
+                    <div id="previewQrActions" class="mt-3 flex flex-wrap gap-2">
+                        <a id="previewQrPng" href="#" class="gs-button-view">Download PNG</a>
+                        <button type="button" id="previewQrPhone" class="gs-button-view">Phone Image</button>
+                        <a id="previewQrPrint" href="#" target="_blank" class="gs-button-view">Print Card</a>
+                    </div>
+
+                    <form method="POST" action="qr_regenerate.php" class="mt-3"
+                          onsubmit="return confirm('Issue a new QR code? The current code will stop working.');">
+                        <input type="hidden" name="id" id="previewQrId" value="">
+                        <button type="submit" id="previewQrReissue" class="gs-button-edit">Issue New Code</button>
+                    </form>
+                </div>
+
+            </div>
+
+        </div>
+
         <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
             <button
                 type="button"
@@ -468,9 +519,131 @@ require_once 'includes/sidebar.php';
             noPhoto.classList.add('flex');
         }
 
+        showQrPanel(d, fullName);
+
         const modal = document.getElementById('graduatePreviewModal');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+    }
+
+    // --- QR panel ---
+    const QR_STATUS = {
+        active:      ['gs-badge-success', 'Ready to scan. Printed cards show it at 30 mm; the phone image keeps it about 2–3 cm wide on screen.'],
+        used:        ['gs-badge-neutral', 'Already scanned at the ceremony. Issue a new code only if they need to be scanned again.'],
+        invalidated: ['gs-badge-error', 'This code was replaced and no longer works. Issue a new code.'],
+        expired:     ['gs-badge-neutral', 'This code has expired. Issue a new code.'],
+    };
+    let currentQr = null;
+
+    function showQrPanel(d, fullName) {
+        const status = d.qrStatus;
+        const img = document.getElementById('previewQr');
+        const none = document.getElementById('previewNoQr');
+        const badge = document.getElementById('previewQrStatus');
+        const actions = document.getElementById('previewQrActions');
+
+        document.getElementById('previewQrId').value = d.id;
+        currentQr = { id: d.id, name: fullName, studentId: d.studentId, course: d.course, year: d.graduationYear };
+
+        if (!status) {
+            img.classList.add('hidden');
+            none.classList.remove('hidden');
+            none.classList.add('flex');
+            badge.className = 'gs-badge gs-badge-warning';
+            badge.textContent = 'none';
+            document.getElementById('previewQrHint').textContent = 'This graduate has no QR code yet.';
+            actions.classList.add('hidden');
+            document.getElementById('previewQrReissue').textContent = 'Issue QR Code';
+            return;
+        }
+
+        // The version parameter stops the browser reusing an image from before a reissue
+        img.src = 'qr.php?id=' + encodeURIComponent(d.id) + '&v=' + Date.now();
+        img.classList.remove('hidden');
+        none.classList.add('hidden');
+        none.classList.remove('flex');
+        actions.classList.remove('hidden');
+
+        const [cls, hint] = QR_STATUS[status] || ['gs-badge-neutral', ''];
+        badge.className = 'gs-badge capitalize ' + cls;
+        badge.textContent = status;
+        document.getElementById('previewQrHint').textContent = hint;
+        document.getElementById('previewQrReissue').textContent = 'Issue New Code';
+
+        document.getElementById('previewQrPng').href = 'qr.php?id=' + encodeURIComponent(d.id) + '&format=png&download=1';
+        document.getElementById('previewQrPrint').href = 'qr_cards.php?id=' + encodeURIComponent(d.id) + '&include_used=1';
+    }
+
+    // Phone image: a portrait card where the QR fills about 40% of the width,
+    // so on a typical phone held at full screen it shows about 2.6 cm wide,
+    // which is what the desk scanner reads most reliably.
+    document.getElementById('previewQrPhone').addEventListener('click', async function () {
+        if (!currentQr) return;
+
+        const qr = new Image();
+        qr.src = 'qr.php?id=' + encodeURIComponent(currentQr.id) + '&format=png&v=' + Date.now();
+        try {
+            await qr.decode();
+            await document.fonts.ready;
+        } catch (e) {
+            alert('Could not load the QR code. Please try again.');
+            return;
+        }
+
+        const W = 1080, H = 1920, Q = 440;
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#074422';
+        ctx.fillRect(0, 0, W, 260);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 64px Poppins, sans-serif';
+        ctx.fillText('GradScan', W / 2, 150);
+        ctx.fillStyle = '#FFDD21';
+        ctx.font = '500 34px Poppins, sans-serif';
+        ctx.fillText('Graduation QR Code', W / 2, 210);
+
+        ctx.fillStyle = '#1f2937';
+        ctx.font = '600 56px Poppins, sans-serif';
+        wrapText(ctx, currentQr.name, W / 2, 420, W - 160, 68);
+
+        ctx.fillStyle = '#4b5563';
+        ctx.font = '400 40px Poppins, sans-serif';
+        ctx.fillText(currentQr.studentId, W / 2, 620);
+        ctx.fillText((currentQr.course || '') + (currentQr.year ? ' · Class of ' + currentQr.year : ''), W / 2, 680);
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(qr, (W - Q) / 2, 820, Q, Q);
+
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '400 34px Poppins, sans-serif';
+        wrapText(ctx, 'Open this image at full screen and hold the phone flat over the scanner. Do not zoom in.', W / 2, 1420, W - 200, 48);
+
+        const link = document.createElement('a');
+        link.download = 'QR_' + String(currentQr.studentId).replace(/[^A-Za-z0-9_-]/g, '_') + '_phone.png';
+        link.href = c.toDataURL('image/png');
+        link.click();
+    });
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+        let line = '';
+        for (const word of String(text).split(' ')) {
+            const test = line ? line + ' ' + word : word;
+            if (ctx.measureText(test).width > maxWidth && line) {
+                ctx.fillText(line, x, y);
+                line = word;
+                y += lineHeight;
+            } else {
+                line = test;
+            }
+        }
+        if (line) ctx.fillText(line, x, y);
     }
 
     function closeGraduatePreview() {
